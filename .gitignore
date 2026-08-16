@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.env
+.browser-profile/
+logs/*.log
+data/hand_histories/*
+!data/hand_histories/.gitkeep
+data/observations/*
+!data/observations/.gitkeep
+!data/observations/vision/
+data/observations/vision/*
+!data/observations/vision/.gitkeep
+config/vision.json
+data/card_templates/*.png
+!data/card_templates/.gitkeep
