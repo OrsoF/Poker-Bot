@@ -6,8 +6,10 @@ from src.browser import gambit, gambit_observation
 from src.browser.gambit import _apply_action
 from src.browser.gambit_observation import (
     GambitTableReader,
+    HeroTurnScreenshotCache,
     StableObservationDetector,
     TableObservation,
+    _needs_screenshot,
 )
 from src.reader.game_state import parse_visible_state
 from src.strategy.conservative import Recommendation
@@ -48,6 +50,21 @@ class _Control:
         self.clicks += 1
 
 
+class _CapturePage:
+    def __init__(self) -> None:
+        self.captures = 0
+
+    def screenshot(self) -> bytes:
+        self.captures += 1
+        return b"screenshot"
+
+
+class _VisionReader:
+    def read_screenshot(self, screenshot: bytes) -> object:
+        assert screenshot == b"screenshot"
+        return object()
+
+
 def test_atomic_snapshot_and_action_guard(monkeypatch: pytest.MonkeyPatch) -> None:
     snapshot = _observation()
     detector = StableObservationDetector()
@@ -58,11 +75,28 @@ def test_atomic_snapshot_and_action_guard(monkeypatch: pytest.MonkeyPatch) -> No
     assert detector.observe(snapshot) is None
     assert detector.observe(snapshot) == snapshot
 
+    assert not _needs_screenshot(False, False, (None, None, None, None, None))
+    assert _needs_screenshot(True, False, (None, None, None, None, None))
+    assert not _needs_screenshot(True, True, ("a", "b", "c", None, None))
+    assert _needs_screenshot(True, True, ("a", None, "c", None, None))
+
+    capture_page = _CapturePage()
+    capture_cache = HeroTurnScreenshotCache()
+    vision_reader = _VisionReader()
+    assert capture_cache.read(capture_page, vision_reader, ("preflop",))
+    assert capture_cache.read(capture_page, vision_reader, ("preflop",))
+    assert capture_page.captures == 1
+    assert capture_cache.read(capture_page, vision_reader, ("flop",))
+    assert capture_page.captures == 2
+    capture_cache.reset()
+    assert capture_cache.read(capture_page, vision_reader, ("flop",))
+    assert capture_page.captures == 3
+
     reads = []
     monkeypatch.setattr(
         gambit_observation,
         "read_table_observation",
-        lambda page, vision, matcher, stage: reads.append(stage) or snapshot,
+        lambda page, vision, matcher, stage, cache: reads.append(stage) or snapshot,
     )
     reader = GambitTableReader("page", "vision", "matcher", "stable-stage")
     assert reader.read() == snapshot

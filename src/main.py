@@ -1,19 +1,22 @@
 import argparse
 
 from src.browser.gambit import inspect_table, observe_table
-from src.browser.mock_table import MockTable
-from src.safety.limits import Limits
-from src.strategy.rules import choose_action
+from src.strategy.conservative import ObservedState, decide
 
 
 def run_dry_run() -> None:
-    table = MockTable()
-    limits = Limits(max_hands=20, stop_loss=0)
-    state = table.read_state()
-    action = choose_action(state)
-
-    if limits.allows(action):
-        table.perform(action)
+    """Exercise the same safe strategy used by the live browser path."""
+    decision = decide(
+        ObservedState(
+            hand=None,
+            street="preflop",
+            to_call=None,
+            big_blind=None,
+            can_check=False,
+            available_actions=frozenset({"FOLD"}),
+        )
+    )
+    print(f"DRY RUN: {decision.action} — {decision.reason}")
 
 
 def main() -> None:

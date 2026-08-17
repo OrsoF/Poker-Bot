@@ -81,6 +81,27 @@ class StableObservationDetector:
         return observation if self.candidate_frames >= self.required_frames else None
 
 
+@dataclass
+class HeroTurnScreenshotCache:
+    """Reuse one screenshot while the same hero turn remains visible."""
+
+    key: tuple[object, ...] | None = None
+    screenshot: bytes | None = None
+    vision_state: object | None = None
+
+    def reset(self) -> None:
+        self.key = None
+        self.screenshot = None
+        self.vision_state = None
+
+    def read(self, page, vision_reader, key: tuple[object, ...]):
+        if self.key != key or self.screenshot is None or self.vision_state is None:
+            self.screenshot = page.screenshot()
+            self.vision_state = vision_reader.read_screenshot(self.screenshot)
+            self.key = key
+        return self.screenshot, self.vision_state
+
+
 def preflop_position_from_action_history(action_history: tuple[str, ...]) -> str | None:
     """Infer first-action position in an unraised pot from prior seat actions."""
     if any(action.startswith("RAISE") for action in action_history):
@@ -189,6 +210,17 @@ def board_needs_screenshot_fallback(sources: tuple[str | None, ...]) -> bool:
     return any(source is None for source in sources[: dealt_indices[-1] + 1])
 
 
+def _needs_screenshot(
+    hero_turn: bool,
+    has_dom_hero: bool,
+    board_sources: tuple[str | None, ...],
+) -> bool:
+    """Capture only when a hero decision cannot be read safely from the DOM."""
+    return hero_turn and (
+        not has_dom_hero or board_needs_screenshot_fallback(board_sources)
+    )
+
+
 def _read_dom_board(dom_card_matcher, sources, screenshot_state=None) -> tuple[CardRead, ...]:
     return tuple(
         dom_card_matcher.read(source)
@@ -231,6 +263,7 @@ def read_table_observation(
     vision_reader,
     dom_card_matcher,
     stage_detector=None,
+    screenshot_cache: HeroTurnScreenshotCache | None = None,
 ) -> TableObservation:
     """Read cards, controls, betting facts, and position through one path."""
     raw_text = page.locator("body").inner_text(timeout=2_000)
@@ -258,18 +291,42 @@ def read_table_observation(
     hero_turn = _is_hero_turn(page, vision_reader.layout)
     has_dom_hero = bool(hero_sources) and all(source is not None for source in hero_sources)
     screenshot = None
-    if has_dom_hero:
-        screenshot_state = None
-        if hero_turn and board_needs_screenshot_fallback(board_sources):
+    screenshot_state = None
+    if not hero_turn and screenshot_cache is not None:
+        screenshot_cache.reset()
+    if _needs_screenshot(hero_turn, has_dom_hero, board_sources):
+        capture_key = (
+            parsed.street,
+            tuple(source is not None for source in hero_sources),
+            tuple(source is not None for source in board_sources),
+        )
+        if screenshot_cache is None:
             screenshot = page.screenshot()
             screenshot_state = vision_reader.read_screenshot(screenshot)
+        else:
+            screenshot, screenshot_state = screenshot_cache.read(
+                page,
+                vision_reader,
+                capture_key,
+            )
+
+    if has_dom_hero:
         vision_state = VisionState(
             hero=tuple(dom_card_matcher.read(source) for source in hero_sources),
             board=_read_dom_board(dom_card_matcher, board_sources, screenshot_state),
         )
+    elif screenshot_state is not None:
+        vision_state = screenshot_state
     else:
-        screenshot = page.screenshot()
-        vision_state = vision_reader.read_screenshot(screenshot)
+        # A non-actionable frame never needs an image capture. Empty hero cards
+        # force the strategy to remain inactive until the next hero turn.
+        vision_state = VisionState(
+            hero=tuple(
+                CardRead(card=None, confidence=1.0, is_empty=True)
+                for _ in vision_reader.layout.hero
+            ),
+            board=_read_dom_board(dom_card_matcher, board_sources),
+        )
 
     street = (
         stage_detector.observe(vision_state.board)
@@ -312,6 +369,9 @@ class GambitTableReader:
     vision_reader: object | None
     dom_card_matcher: object | None
     stage_detector: object | None = None
+    screenshot_cache: HeroTurnScreenshotCache = field(
+        default_factory=HeroTurnScreenshotCache
+    )
 
     def read(self, stabilize_stage: bool = True) -> TableObservation:
         return read_table_observation(
@@ -319,4 +379,5 @@ class GambitTableReader:
             self.vision_reader,
             self.dom_card_matcher,
             self.stage_detector if stabilize_stage else None,
+            self.screenshot_cache,
         )

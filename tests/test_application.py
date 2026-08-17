@@ -7,8 +7,6 @@ import pytest
 from src import main
 from src.reader.recorder import ObservationRecorder
 from src.strategy.conservative import ObservedState
-from src.strategy.models import TableState
-from src.strategy.rules import choose_action
 
 
 def test_cli_recorder_and_offline_default(
@@ -43,4 +41,3 @@ def test_cli_recorder_and_offline_default(
     )
     record = json.loads(recorder.path.read_text(encoding="utf-8"))
     assert record["parsed"]["available_actions"] == ["CALL", "FOLD", "RAISE"]
-    assert choose_action(TableState(to_call=0, minimum_raise=2, stack=100)).kind == "check"

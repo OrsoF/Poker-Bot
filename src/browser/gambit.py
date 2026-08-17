@@ -75,7 +75,7 @@ def _print_vision_state(
         f"known={dom_card_matcher.card_count}/52"
     )
     if show_hand_strength:
-        from src.strategy.hand_strength import evaluate_hand
+        from src.vision.hand_strength import evaluate_hand
 
         strength = evaluate_hand(observation.hero_cards, observation.board_cards)
         if strength is not None:

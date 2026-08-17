@@ -2,8 +2,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from src.strategy.hand_strength import evaluate_hand
 from src.vision.cards import CardRead, CardTemplateMatcher
+from src.vision.hand_strength import evaluate_hand
 from src.vision.stage import StableStageDetector, stage_from_board
 from src.vision.training import normalize_card_label
 
