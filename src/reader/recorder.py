@@ -8,6 +8,17 @@ from pathlib import Path
 from src.strategy.conservative import ObservedState
 
 
+def _json_safe(value):
+    """Recursively normalize immutable Python containers for JSON output."""
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (set, frozenset)):
+        return sorted(_json_safe(item) for item in value)
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
 class ObservationRecorder:
     def __init__(self) -> None:
         directory = Path("data/observations")
@@ -25,7 +36,7 @@ class ObservationRecorder:
         record = {
             "recorded_at": datetime.now().astimezone().isoformat(),
             "visible_text": visible_text,
-            "parsed": asdict(state),
+            "parsed": _json_safe(asdict(state)),
             "hero_turn": hero_turn,
         }
         if dom_map is not None:

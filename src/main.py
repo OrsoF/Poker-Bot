@@ -50,10 +50,8 @@ def main() -> None:
         return
 
     observe_table(
-        auto_fold=False,
         interval_seconds=args.interval,
         target_url=args.url,
-        strategy="conservative",
         record=args.command in {"train", "assist", "play"},
         auto_play=args.command == "play",
         record_dom=False,

@@ -7,18 +7,15 @@ state always yields NO_ACTION.
 from dataclasses import dataclass, replace
 
 from src.strategy.equity import assess_call
+from src.strategy.hand_strength import evaluate_hand
 
 
-PREFLOP_OPEN_RANGES = {
-    "UTG": frozenset({"AA", "KK", "QQ", "JJ", "TT", "99", "88", "77", "AKs", "AQs", "AJs", "ATs", "AKo", "AQo", "KQs"}),
-    "HJ": frozenset({"AA", "KK", "QQ", "JJ", "TT", "99", "88", "77", "66", "AKs", "AQs", "AJs", "ATs", "AKo", "AQo", "AJo", "KQs", "KJs", "KQo", "QJs", "JTs"}),
-    "CO": frozenset({"AA", "KK", "QQ", "JJ", "TT", "99", "88", "77", "66", "55", "AKs", "AQs", "AJs", "ATs", "A9s", "A8s", "AKo", "AQo", "AJo", "KQs", "KJs", "KTs", "KQo", "QJs", "QTs", "JTs", "T9s", "98s"}),
-    "BTN": frozenset({"AA", "KK", "QQ", "JJ", "TT", "99", "88", "77", "66", "55", "44", "33", "22", "AKs", "AQs", "AJs", "ATs", "A9s", "A8s", "A7s", "A6s", "A5s", "A4s", "A3s", "A2s", "AKo", "AQo", "AJo", "ATo", "A9o", "A8o", "KQs", "KJs", "KTs", "K9s", "K8s", "KQo", "KJo", "KTo", "QJs", "QTs", "Q9s", "QJo", "QTo", "JTs", "J9s", "JTo", "T9s", "98s", "87s", "76s"}),
-    "SB": frozenset({"AA", "KK", "QQ", "JJ", "TT", "99", "88", "77", "66", "55", "44", "33", "22", "AKs", "AQs", "AJs", "ATs", "A9s", "A8s", "A7s", "A6s", "A5s", "A4s", "A3s", "A2s", "AKo", "AQo", "AJo", "ATo", "KQs", "KJs", "KTs", "K9s", "KQo", "KJo", "QJs", "QTs", "Q9s", "QJo", "JTs", "J9s", "T9s", "98s", "87s"}),
-}
-PREFLOP_CALL_OPEN = frozenset({"AA", "KK", "QQ", "JJ", "TT", "99", "AKs", "AQs", "AJs", "AKo", "AQo", "KQs"})
-PREFLOP_CALL_OPEN_IN_POSITION = PREFLOP_CALL_OPEN | frozenset({"88", "77", "ATs", "KJs", "KQo", "QJs", "JTs"})
-PREFLOP_3BET_CONTINUE = frozenset({"AA", "KK", "QQ", "JJ", "AKs", "AQs", "AKo"})
+from src.strategy.preflop_ranges import (
+    PREFLOP_3BET_CONTINUE,
+    PREFLOP_CALL_OPEN,
+    PREFLOP_CALL_OPEN_IN_POSITION,
+    PREFLOP_OPEN_RANGES,
+)
 
 
 @dataclass(frozen=True)
@@ -38,12 +35,15 @@ class ObservedState:
     action_history: tuple[str, ...] = ()
     hero_cards: tuple[str, ...] = ()
     board_cards: tuple[str, ...] = ()
+    available_actions: frozenset[str] = frozenset()
+    raise_amount: float | None = None
 
 
 @dataclass(frozen=True)
 class Recommendation:
     action: str
     reason: str
+    amount: float | None = None
 
 
 def _priced_call(state: ObservedState, samples: int) -> Recommendation:
@@ -80,7 +80,10 @@ def recommend(state: ObservedState, equity_samples: int = 1_200) -> Recommendati
                 return Recommendation("NO_ACTION", "Hero position is unknown for an unopened pot")
             if state.hand in opening_range:
                 return Recommendation("RAISE", f"Open {state.hand} from {state.hero_position}")
-            return Recommendation("FOLD", f"{state.hand} is outside the {state.hero_position} opening range")
+            return Recommendation(
+                "FOLD",
+                f"{state.hand} is outside the {state.hero_position} opening range",
+            )
         if raise_count >= 2:
             if state.hand in PREFLOP_3BET_CONTINUE:
                 priced = _priced_call(state, equity_samples)
@@ -88,7 +91,10 @@ def recommend(state: ObservedState, equity_samples: int = 1_200) -> Recommendati
                     priced,
                     reason=f"{state.hand} is in the conservative 3-bet continue range; {priced.reason}",
                 )
-            return Recommendation("FOLD", f"{state.hand} is outside the conservative 3-bet continue range")
+            return Recommendation(
+                "FOLD",
+                f"{state.hand} is outside the conservative 3-bet continue range",
+            )
         call_range = (
             PREFLOP_CALL_OPEN_IN_POSITION
             if state.hero_position in {"BTN", "CO"}
@@ -110,6 +116,43 @@ def recommend(state: ObservedState, equity_samples: int = 1_200) -> Recommendati
         return _priced_call(state, equity_samples)
 
     return Recommendation("NO_ACTION", "Street was not read reliably")
+
+
+def decide(state: ObservedState, equity_samples: int = 1_200) -> Recommendation:
+    """Return one final, legal, executable decision with its exact amount."""
+    decision = recommend(state, equity_samples=equity_samples)
+
+    if state.street in {"flop", "turn", "river"} and state.can_check:
+        strength = evaluate_hand(state.hero_cards, state.board_cards)
+        has_made_hand = strength is not None and strength.score[0] >= 1
+        decision = Recommendation(
+            "RAISE" if has_made_hand else "CHECK",
+            strength.text if has_made_hand else "No made hand; check for free",
+        )
+
+    if decision.action not in state.available_actions:
+        decision = Recommendation(
+            "NO_ACTION",
+            f"{decision.reason}; recommended action is unavailable",
+        )
+
+    if decision.action == "CALL":
+        if state.to_call is None:
+            decision = Recommendation("NO_ACTION", f"{decision.reason}; call amount is unavailable")
+        else:
+            decision = replace(decision, amount=state.to_call)
+    elif decision.action == "RAISE":
+        if state.raise_amount is None:
+            decision = Recommendation("NO_ACTION", f"{decision.reason}; raise amount is unavailable")
+        else:
+            decision = replace(decision, amount=state.raise_amount)
+
+    if decision.action == "NO_ACTION":
+        if "CHECK" in state.available_actions:
+            return Recommendation("CHECK", f"{decision.reason}; checking is free")
+        if "FOLD" in state.available_actions:
+            return Recommendation("FOLD", f"{decision.reason}; fail-safe fold")
+    return decision
 
 
 def with_vision_hand(
