@@ -29,6 +29,12 @@ class StableStageDetector:
     candidate_frames: int = 0
     stage: str | None = None
 
+    def reset(self) -> None:
+        """Forget the completed hand before observing the next one."""
+        self.candidate = None
+        self.candidate_frames = 0
+        self.stage = None
+
     def observe(self, board: tuple[CardRead, ...]) -> str | None:
         observed = stage_from_board(board)
         if observed is None:

@@ -42,3 +42,11 @@ class VisionReader:
                 for region in self.layout.board
             ),
         )
+
+    def card_crops(self, screenshot: bytes) -> dict[str, Image.Image]:
+        """Return labelled hero and board crops for interactive template training."""
+        image = Image.open(BytesIO(screenshot))
+        return {
+            **{f"hero-{index + 1}": _crop(image, region) for index, region in enumerate(self.layout.hero)},
+            **{f"board-{index + 1}": _crop(image, region) for index, region in enumerate(self.layout.board)},
+        }

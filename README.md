@@ -17,37 +17,27 @@ python -m src.main
 automation, keep its UI selectors and implementation there; keep strategy code
 independent from the site.
 
-## Visible observation mode
+## Commands
 
 Install the browser runtime once after installing dependencies:
 
 ```powershell
 python -m playwright install chromium
-python -m src.main --observe
+python -m src.main observe
 ```
 
 A visible Chromium window opens. Sign in yourself; credentials are never read,
 saved, or placed in this project. The same local browser profile is reused for
 later sessions.
 
-## Commands
-
 | Command | Behaviour |
 | --- | --- |
-| `python -m src.main` | Runs the offline mock-table dry run. |
-| `python -m src.main --observe` | Opens the visible Gambit observer; no actions are taken. |
-| `python -m src.main --observe --strategy fold-only --auto-fold` | Legacy test mode: folds every detected turn, then clicks Next Hand. |
-| `python -m src.main --observe --strategy conservative` | Shadow mode: prints the conservative strategy recommendation without clicking. |
-| `python -m src.main --observe --strategy conservative --record` | Shadow mode plus JSONL recording to `data/observations/`. |
-| `python -m src.main --observe --strategy conservative --record --record-dom` | Recording plus visible UI metadata used to map stable table selectors. |
-| `python -m src.main --observe --strategy conservative --vision` | Takes a table screenshot at a detected turn and reports high-confidence configured card reads. |
-| `python -m src.main --observe --strategy conservative --auto-play --record` | Conservative auto-play plus recording. It folds unknown/non-premium preflop hands, checks when free, calls premium preflop hands and post-flop calls up to 2 BB, then clicks Next Hand when available. |
-
-The recommended command while improving the parser is:
-
-```powershell
-python -m src.main --observe --strategy conservative --auto-play --record
-```
+| `python -m src.main` or `python -m src.main dry-run` | Runs the offline mock-table dry run. |
+| `python -m src.main observe` | Opens the visible observer; no screenshots or clicks. |
+| `python -m src.main inspect` | Saves visible card/control metadata and screenshots to `data/inspections/`; never clicks. |
+| `python -m src.main train` | Records screenshots and prompts for labels for unrecognized or low-confidence cards; never clicks. |
+| `python -m src.main assist` | Shows card vision, hand strength, and conservative recommendations while you click actions yourself; prompts for unrecognized or low-confidence cards. |
+| `python -m src.main play` | Uses vision and conservative autoplay while recording observations. Add `--hand-strength` to print the best confirmed hand on each street. |
 
 Use it only where browser automation is allowed by the platform and for a
 table you are authorized to control. Sign in yourself; credentials are never
@@ -57,14 +47,16 @@ Each recorded observation includes a `hero_turn` field. The current turn gate
 detects Gambit's blue `ACTION` badge in the calibrated hero-card region; it
 does not rely on Gambit's coaching text.
 
-Useful options:
+Automatic calls fail closed unless confirmed cards, pot, call price, effective
+stack, and active-player count remain stable. The conservative call gate uses
+deterministic showdown sampling, pot odds, an equity-realization discount, and
+requires the hole cards to contribute a made hand or confirmed draw postflop.
+
+Browser commands accept these options:
 
 ```text
 --interval SECONDS       Polling interval (default: 1.0)
 --url https://gambit.com/...  Open a specific Gambit page or table URL
---record                 Save visible state changes for parser tuning
---record-dom             Include visible control and card-candidate metadata (requires --record)
---vision                 Enable local screenshot card recognition
 ```
 
 ## Vision setup
@@ -78,12 +70,11 @@ browser window. Save complete card-face reference crops as files named like
 ```powershell
 pip install -r requirements.txt
 Copy-Item config/vision.example.json config/vision.json
-python -m src.main --observe --strategy conservative --vision
+python -m src.main train
 ```
 
-Only reads at least 92% template confidence are reported; unknown cards remain
-`?` and are never used for decisions.
+Hero and board cards use Gambit's visible inline SVG faces and are labelled
+interactively the first time each face appears. Screenshots are used only when
+the DOM card faces are unavailable.
 
-Vision mode also saves the screenshot used for each attempted read in
-`data/observations/vision/`; use those images to calibrate the rectangles and
-create the card templates.
+Screenshot fallback saves its attempted reads in `data/observations/vision/`.

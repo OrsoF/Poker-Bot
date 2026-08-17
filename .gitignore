@@ -15,3 +15,6 @@ data/observations/vision/*
 config/vision.json
 data/card_templates/*.png
 !data/card_templates/.gitkeep
+data/card_templates/dom_cards.json
+data/inspections/*
+!data/inspections/.gitkeep
