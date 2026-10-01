@@ -5,7 +5,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 
-from src.strategy.conservative import ObservedState
+from src.models import ObservedState
 
 
 def _json_safe(value):

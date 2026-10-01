@@ -14,14 +14,15 @@ fold. Treat this as a safety baseline rather than a complete poker strategy.
 ## Architecture
 
 - `src/main.py`: CLI entry point.
+- `src/models.py`: immutable poker state shared by readers, recording, and strategy.
 - `src/browser/`: Gambit-specific Playwright session, DOM controls, table
   observation, read-only inspection, and card-template training.
 - `src/reader/`: visible-text parsing and JSONL observation recording.
-- `src/strategy/conservative.py`: the only decision policy, plus its input and
-  output data types. Keep it independent from Playwright and Gambit selectors.
+- `src/strategy/conservative.py`: the only decision policy and its recommendation
+  type. It consumes the domain state; keep it independent from Playwright and Gambit selectors.
 - `src/vision/`: DOM/SVG and screenshot card reading, calibrated layout,
   street detection, and display-only hand evaluation.
-- `tests/`: four scenario tests; avoid adding many micro-tests.
+- `tests/`: scenario tests; avoid adding many micro-tests.
 - `config/vision.example.json`: local vision-layout template. Never commit a
   user-specific `config/vision.json` or browser profile.
 

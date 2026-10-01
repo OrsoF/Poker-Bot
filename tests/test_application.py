@@ -6,7 +6,7 @@ import pytest
 
 from src import main
 from src.reader.recorder import ObservationRecorder
-from src.strategy.conservative import ObservedState
+from src.models import ObservedState
 
 
 def test_cli_recorder_and_offline_default(

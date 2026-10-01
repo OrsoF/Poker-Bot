@@ -1,7 +1,8 @@
 import argparse
 
 from src.browser.gambit import inspect_table, observe_table
-from src.strategy.conservative import ObservedState, decide
+from src.models import ObservedState
+from src.strategy.conservative import decide
 
 
 def run_dry_run() -> None:

@@ -1,6 +1,6 @@
-"""Canonical, immutable reads of a live Gambit table."""
+"""Merge visible Gambit reads into immutable table state and source evidence."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from math import atan2, pi
 from typing import TYPE_CHECKING
 
@@ -10,8 +10,8 @@ from src.browser.gambit_controls import (
     live_pot_amount,
     live_raise_amount,
 )
-from src.reader.game_state import parse_visible_state
-from src.strategy.conservative import ObservedState
+from src.models import ObservedState
+from src.reader.game_state import parse_visible_state, with_vision_hand
 from src.vision.cards import CardRead
 
 if TYPE_CHECKING:
@@ -23,23 +23,16 @@ PREFLOP_ACTION_ORDER = ("UTG", "HJ", "CO", "BTN", "SB", "BB")
 STABLE_DECISION_FRAMES = 2
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class TableObservation:
-    """One immutable read of every fact used to make a decision."""
+    """Merged state plus raw evidence for stability, display, and training.
+
+    parsed_state is the text-only input retained for the existing audit output;
+    state is the sole merged input consumed by strategy.
+    """
 
     hero_turn: bool
-    hero_cards: tuple[str | None, ...]
-    board_cards: tuple[str | None, ...]
-    street: str | None
-    available_actions: frozenset[str]
-    call_amount: float | None
-    raise_amount: float | None
-    pot_amount: float | None
-    hero_stack: float | None
-    effective_stack: float | None
-    active_players: int | None
-    hero_position: str | None
-    action_history: tuple[str, ...]
+    state: ObservedState
     raw_text: str = field(compare=False, repr=False)
     parsed_state: ObservedState = field(compare=False, repr=False)
     hero_reads: tuple[CardRead, ...] = field(compare=False, repr=False)
@@ -49,8 +42,34 @@ class TableObservation:
     screenshot: bytes | None = field(compare=False, repr=False)
 
     @property
+    def hero_cards(self) -> tuple[str | None, ...]:
+        return tuple(read.card for read in self.hero_reads)
+
+    @property
+    def board_cards(self) -> tuple[str | None, ...]:
+        return tuple(read.card for read in self.board_reads if not read.is_empty)
+
+    @property
     def actionable(self) -> bool:
-        return self.hero_turn and self.street is not None and bool(self.available_actions)
+        return self.hero_turn and self.state.street is not None and bool(self.state.available_actions)
+
+    def _comparison_key(self) -> tuple[object, ...]:
+        """Keep the original stability/pre-click comparison, including unknown slots."""
+        state = self.state
+        return (
+            self.hero_turn, self.hero_cards, self.board_cards, state.street,
+            state.available_actions, state.to_call, state.raise_amount, state.pot_bb,
+            state.hero_stack_bb, state.effective_stack_bb, state.active_players,
+            state.hero_position, state.action_history,
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if other.__class__ is not self.__class__:
+            return NotImplemented
+        return self._comparison_key() == other._comparison_key()
+
+    def __hash__(self) -> int:
+        return hash(self._comparison_key())
 
 
 @dataclass
@@ -271,13 +290,15 @@ def read_table_observation(
     if vision_reader is None:
         actions = available_actions(page)
         return TableObservation(
-            hero_turn=False, hero_cards=(), board_cards=(), street=parsed.street,
-            available_actions=actions,
-            call_amount=live_call_amount(page) if "CALL" in actions else None,
-            raise_amount=live_raise_amount(page) if "RAISE" in actions else None,
-            pot_amount=parsed.pot_bb, hero_stack=parsed.hero_stack_bb,
-            effective_stack=parsed.effective_stack_bb, active_players=parsed.active_players,
-            hero_position=None, action_history=parsed.action_history, raw_text=raw_text,
+            hero_turn=False,
+            state=replace(
+                parsed,
+                available_actions=actions,
+                can_check="CHECK" in actions,
+                to_call=live_call_amount(page) if "CALL" in actions else None,
+                raise_amount=live_raise_amount(page) if "RAISE" in actions else None,
+            ),
+            raw_text=raw_text,
             parsed_state=parsed, hero_reads=(), board_reads=(), hero_sources=(),
             board_sources=(), screenshot=None,
         )
@@ -337,20 +358,26 @@ def read_table_observation(
     if hero_turn and street == "preflop" and hero_position is None:
         hero_position = preflop_position_from_action_history(parsed.action_history)
     actions = available_actions(page)
+    call_amount = live_call_amount(page) if "CALL" in actions else None
+    raise_amount = live_raise_amount(page) if "RAISE" in actions else None
+    pot_amount = live_pot_amount(page, vision_reader.layout) or parsed.pot_bb
+    state = replace(
+        with_vision_hand(
+            parsed,
+            vision_state.hero_cards,
+            tuple(read.card for read in vision_state.board if not read.is_empty),
+        ),
+        street=street,
+        hero_position=hero_position,
+        can_check="CHECK" in actions,
+        to_call=call_amount,
+        pot_bb=pot_amount,
+        available_actions=actions,
+        raise_amount=raise_amount,
+    )
     return TableObservation(
         hero_turn=hero_turn,
-        hero_cards=vision_state.hero_cards,
-        board_cards=tuple(read.card for read in vision_state.board if not read.is_empty),
-        street=street,
-        available_actions=actions,
-        call_amount=live_call_amount(page) if "CALL" in actions else None,
-        raise_amount=live_raise_amount(page) if "RAISE" in actions else None,
-        pot_amount=live_pot_amount(page, vision_reader.layout) or parsed.pot_bb,
-        hero_stack=parsed.hero_stack_bb,
-        effective_stack=parsed.effective_stack_bb,
-        active_players=parsed.active_players,
-        hero_position=hero_position,
-        action_history=parsed.action_history,
+        state=state,
         raw_text=raw_text,
         parsed_state=parsed,
         hero_reads=vision_state.hero,

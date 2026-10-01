@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     from playwright.sync_api import Page
 
 
-FOLD_LABEL = re.compile(r"\bfold\b", re.IGNORECASE)
 CALL_LABEL = re.compile(r"^Call:\s*\d+(?:\.\d+)?(?:\s*BB)?$", re.IGNORECASE)
 RAISE_LABEL = re.compile(
     r"^(?:Check\s+)?(?:Bet|Raise):\s*\d+(?:\.\d+)?(?:\s*BB)?$",

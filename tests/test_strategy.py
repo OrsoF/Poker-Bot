@@ -1,7 +1,8 @@
 from dataclasses import replace
 
-from src.reader.game_state import parse_visible_state
-from src.strategy.conservative import ObservedState, decide, recommend, with_vision_hand
+from src.models import ObservedState
+from src.reader.game_state import parse_visible_state, with_vision_hand
+from src.strategy.conservative import decide, recommend
 
 
 def test_safe_strategy_only_opens_confirmed_premiums() -> None:

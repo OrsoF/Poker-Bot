@@ -1,3 +1,5 @@
+# This example is not loaded by the application; all options below are unused.
+# CLI commands control dry-run. Session caps and stop-loss are not implemented.
 dry_run: true
 max_hands_per_session: 20
 stop_loss: 0

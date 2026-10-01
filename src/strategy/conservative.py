@@ -7,30 +7,11 @@ unless checking is free.
 
 from dataclasses import dataclass, replace
 
+from src.models import ObservedState
+
 
 SAFE_OPEN_HANDS = frozenset({"AA", "KK", "QQ", "JJ", "AKs", "AQs", "AKo"})
 OPEN_POSITIONS = frozenset({"UTG", "HJ", "CO", "BTN", "SB"})
-
-
-@dataclass(frozen=True)
-class ObservedState:
-    hand: str | None
-    street: str | None
-    to_call: float | None
-    big_blind: float | None
-    can_check: bool
-    hero_stack_bb: float | None = None
-    hero_position: str | None = None
-    pot_bb: float | None = None
-    current_raise_to_bb: float | None = None
-    minimum_raise_to_bb: float | None = None
-    active_players: int | None = None
-    effective_stack_bb: float | None = None
-    action_history: tuple[str, ...] = ()
-    hero_cards: tuple[str, ...] = ()
-    board_cards: tuple[str, ...] = ()
-    available_actions: frozenset[str] = frozenset()
-    raise_amount: float | None = None
 
 
 @dataclass(frozen=True)
@@ -77,24 +58,3 @@ def decide(state: ObservedState) -> Recommendation:
     if "FOLD" in state.available_actions:
         return Recommendation("FOLD", f"{recommendation.reason}; fail-safe fold")
     return Recommendation("NO_ACTION", f"{recommendation.reason}; action is unavailable")
-
-
-def with_vision_hand(
-    state: ObservedState,
-    cards: tuple[str | None, ...],
-    board: tuple[str | None, ...] = (),
-) -> ObservedState:
-    """Replace text-derived cards with a verified two-card visual read."""
-    if len(cards) != 2 or any(card is None for card in cards) or any(card is None for card in board):
-        return replace(state, hand=None, hero_cards=(), board_cards=())
-    first, second = cards
-    assert first is not None and second is not None
-    rank_order = "23456789TJQKA"
-    high, low = sorted((first[0].upper(), second[0].upper()), key=rank_order.index, reverse=True)
-    hand = high + low if high == low else high + low + ("s" if first[1] == second[1] else "o")
-    return replace(
-        state,
-        hand=hand,
-        hero_cards=(first, second),
-        board_cards=tuple(card for card in board if card is not None),
-    )

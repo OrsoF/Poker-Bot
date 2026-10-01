@@ -1,1 +1,1 @@
-"""Session and bankroll guardrails."""
+"""Placeholder for future session and bankroll guardrails."""

@@ -47,15 +47,21 @@ python -m src.main play --hand-strength --interval 1
 ```text
 src/
   main.py                    CLI entry point
+  models.py                  Immutable poker state shared by readers and strategy
   browser/                   Gambit session, table reading, controls, inspection, and training
   reader/                    Visible-text parsing and JSONL observation recording
   strategy/
     conservative.py          The only safe decision policy
   vision/                    DOM/screenshot card reads, layout, street detection, hand display
-tests/                       Four scenario tests: browser safety, strategy, vision, application
+tests/                       Scenario tests: browser safety, strategy, vision, application
 config/vision.example.json   Template for local table calibration
 data/                        Local observations and learned card templates
 ```
+
+The table reader merges visible text, controls, and raw card reads into one
+`ObservedState`. `TableObservation` carries that state together with source
+evidence for stability checks, display, and training. Strategy consumes the
+merged state directly; recording retains the existing text-only audit data.
 
 ## Safety behavior
 

@@ -5,8 +5,6 @@ from hashlib import sha256
 from pathlib import Path
 import re
 
-from PIL import Image
-
 from src.vision.reader import VisionReader, VisionState
 from src.vision.dom_cards import DomCardMatcher, svg_fingerprint
 
@@ -86,10 +84,10 @@ def prompt_for_unknown_dom_cards(
     prompted: set[str],
     locations: tuple[str, ...] | None = None,
 ) -> int:
-    """Ask for a label once for each visible hero-card SVG face not in the library."""
+    """Ask for a label once for each visible card SVG face not in the library."""
     saved = 0
     locations = locations or tuple(f"hero-{index}" for index in range(1, len(sources) + 1))
-    for index, (source, location) in enumerate(zip(sources, locations), 1):
+    for source, location in zip(sources, locations):
         if source is None or matcher.read(source).card is not None:
             continue
         fingerprint = svg_fingerprint(source)

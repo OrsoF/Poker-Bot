@@ -109,8 +109,7 @@ def inspect_table(interval_seconds: float, target_url: str | None = None) -> Non
     """Save visible table metadata and screenshots without clicking any controls."""
     if interval_seconds <= 0:
         raise ValueError("interval_seconds must be greater than zero")
-    if target_url is not None and not target_url.startswith("https://gambit.com/"):
-        raise ValueError("--url must be an https://gambit.com/ URL")
+    validate_gambit_url(target_url)
     try:
         from playwright.sync_api import Error, sync_playwright
     except ImportError as error:

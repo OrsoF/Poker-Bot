@@ -1,8 +1,9 @@
 """Conservative parser for facts that are visible in Gambit's page text."""
 
+from dataclasses import replace
 import re
 
-from src.strategy.conservative import ObservedState
+from src.models import ObservedState
 
 
 HAND_PATTERN = re.compile(
@@ -26,10 +27,6 @@ POSTFLOP_SIZING_PATTERN = re.compile(r"\b1/3\s+1/2\s+3/4\s+Pot\b", re.IGNORECASE
 PREFLOP_SIZING_PATTERN = re.compile(r"\b2x\s+2\.5x\s+3x\s+4x\b", re.IGNORECASE)
 CHECK_CONTROL_PATTERN = re.compile(r"\bCheck\s+(?:Bet|Raise):\s*\d+\b", re.IGNORECASE)
 RANKS = {"ace": "A", "king": "K", "queen": "Q", "jack": "J", "10": "T"}
-HERO_PROMPT_PATTERN = re.compile(
-    r"\b(?:offsuit|suited|to you|checked around|bet into you|your draw|you picked up)\b",
-    re.IGNORECASE,
-)
 
 
 def _normalize_rank(rank: str) -> str:
@@ -94,11 +91,22 @@ def parse_visible_state(
     )
 
 
-def has_live_action_panel(text: str) -> bool:
-    """Require Gambit's active table controls and reject a completed hand."""
-    return (
-        "All-In" in text
-        and "Next Hand" not in text
-        and "Session Complete" not in text
-        and ("Fold" in text or "Check" in text or "Call:" in text)
+def with_vision_hand(
+    state: ObservedState,
+    cards: tuple[str | None, ...],
+    board: tuple[str | None, ...] = (),
+) -> ObservedState:
+    """Replace text-derived cards with a verified two-card visual read."""
+    if len(cards) != 2 or any(card is None for card in cards) or any(card is None for card in board):
+        return replace(state, hand=None, hero_cards=(), board_cards=())
+    first, second = cards
+    assert first is not None and second is not None
+    rank_order = "23456789TJQKA"
+    high, low = sorted((first[0].upper(), second[0].upper()), key=rank_order.index, reverse=True)
+    hand = high + low if high == low else high + low + ("s" if first[1] == second[1] else "o")
+    return replace(
+        state,
+        hand=hand,
+        hero_cards=(first, second),
+        board_cards=tuple(card for card in board if card is not None),
     )

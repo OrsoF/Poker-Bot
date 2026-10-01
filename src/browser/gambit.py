@@ -19,7 +19,7 @@ from src.browser.gambit_observation import (
 )
 from src.browser.gambit_training import train_unknown_cards
 from src.reader.recorder import ObservationRecorder
-from src.strategy.conservative import Recommendation, decide, with_vision_hand
+from src.strategy.conservative import Recommendation, decide
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page
@@ -38,12 +38,12 @@ def _apply_action(
 ) -> bool:
     """Validate and click the exact action chosen by the pure strategy."""
     action = decision.action
-    if action not in expected_observation.available_actions:
+    if action not in expected_observation.state.available_actions:
         print(f"ACTION: {action.title()} unavailable — not present in the stable observation")
         return False
     expected_amount = {
-        "CALL": expected_observation.call_amount,
-        "RAISE": expected_observation.raise_amount,
+        "CALL": expected_observation.state.to_call,
+        "RAISE": expected_observation.state.raise_amount,
     }.get(action)
     if decision.amount != expected_amount:
         print(f"ACTION: {action.title()} cancelled — strategy amount does not match the table")
@@ -69,7 +69,7 @@ def _print_vision_state(
 ) -> None:
     print(
         "TURN: "
-        f"stage={observation.street or '?'} "
+        f"stage={observation.state.street or '?'} "
         f"hero=[{_format_card_reads(observation.hero_reads)}] "
         f"board=[{_format_card_reads(observation.board_reads)}] "
         f"known={dom_card_matcher.card_count}/52"
@@ -79,8 +79,8 @@ def _print_vision_state(
 
         strength = evaluate_hand(observation.hero_cards, observation.board_cards)
         if strength is not None:
-            print(f"HAND: {observation.street or '?'} | {strength.text}")
-        elif observation.street == "preflop":
+            print(f"HAND: {observation.state.street or '?'} | {strength.text}")
+        elif observation.state.street == "preflop":
             print("HAND: preflop | waiting for the flop")
         else:
             print("HAND: unavailable (cards are not confirmed)")
@@ -118,7 +118,7 @@ def _print_state(
 ) -> str:
     summary = " ".join(observation.raw_text.split())[:500]
     if summary != previous:
-        state = replace(observation.parsed_state, hero_position=observation.hero_position)
+        state = replace(observation.parsed_state, hero_position=observation.state.hero_position)
         hero_turn = "yes" if observation.hero_turn else "no"
         print(f"STATE: {_state_summary(state)} hero_turn={hero_turn}")
         if recorder is not None:
@@ -129,29 +129,6 @@ def _print_state(
                 dom_map=visible_dom_map(page) if record_dom else None,
             )
     return summary
-
-
-def _strategy_state(observation: TableObservation):
-    """Translate one canonical table observation into pure strategy input."""
-    state = with_vision_hand(
-        observation.parsed_state,
-        observation.hero_cards,
-        observation.board_cards,
-    )
-    return replace(
-        state,
-        street=observation.street,
-        hero_position=observation.hero_position,
-        can_check="CHECK" in observation.available_actions,
-        to_call=observation.call_amount,
-        pot_bb=observation.pot_amount,
-        hero_stack_bb=observation.hero_stack,
-        effective_stack_bb=observation.effective_stack,
-        active_players=observation.active_players,
-        action_history=observation.action_history,
-        available_actions=observation.available_actions,
-        raise_amount=observation.raise_amount,
-    )
 
 
 def observe_table(
@@ -265,7 +242,7 @@ def observe_table(
                         and observation.hero_turn
                         and (
                             not vision_turn_active
-                            or observation.street != vision_reported_stage
+                            or observation.state.street != vision_reported_stage
                         )
                     ):
                         _print_vision_state(
@@ -274,7 +251,7 @@ def observe_table(
                             hand_strength,
                         )
                         vision_turn_active = True
-                        vision_reported_stage = observation.street
+                        vision_reported_stage = observation.state.street
                     if not observation.hero_turn:
                         vision_turn_active = False
                         vision_reported_stage = None
@@ -283,7 +260,7 @@ def observe_table(
                         and stable_observation is not None
                         and stable_observation != decision_reported_observation
                     ):
-                        decision_state = _strategy_state(stable_observation)
+                        decision_state = stable_observation.state
                         decision = decide(decision_state)
                         position = decision_state.hero_position or "?"
                         stack = (
