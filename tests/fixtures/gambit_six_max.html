@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- Minimal replay of the visible structures/coordinates captured at 17:36:41.
+     Gambit renders table/dealer artwork behind opacity-zero img elements. -->
+<style>
+  body { margin: 0; font: 16px sans-serif; }
+  .image, .seat, .cards, #hero-stack, #hero-badge, #pot { position: absolute; }
+  .image > * { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .image img { opacity: 0; }
+  .seat { width: 100px; text-align: center; }
+  .folded { opacity: .25; }
+  .badge { height: 24px; }
+  #hero-stack { left: 715px; top: 623px; }
+  #hero-badge { left: 678px; top: 587px; width: 104px; }
+  #panel { position: absolute; left: 408px; top: 656px; }
+  #panel > div { display: inline-block; width: 210px; }
+</style>
+<div id="table" class="image" style="left:280px;top:131.734375px;width:900px;height:558.125px">
+  <div style="background-image:url('/assets/assets/poker/table/poker-table.png')"></div>
+  <img src="/assets/assets/poker/table/poker-table.png">
+</div>
+<div id="dealer" class="image" style="left:1014.5px;top:419.2997px;width:25px;height:25px">
+  <div style="background-image:url('/assets/assets/poker/chips/dealer-button.png')"></div>
+  <img src="/assets/assets/poker/chips/dealer-button.png">
+</div>
+<div class="seat" style="left:311px;top:453px"><div class="badge"></div><div>Nora</div><div>172</div></div>
+<div class="seat folded" style="left:311px;top:231px"><div class="badge">FOLD</div><div>Jimmy</div><div>1073</div></div>
+<div class="seat folded" style="left:680px;top:159px"><div class="badge">FOLD</div><div>Sven</div><div>213</div></div>
+<div class="seat" style="left:1049px;top:231px"><div class="badge">RAISE 10</div><div>Charles</div><div>548</div></div>
+<div class="seat" style="left:1049px;top:453px"><div class="badge">RAISE 36</div><div>Pierre</div><div>137</div></div>
+<div class="cards" style="left:660px;top:497px;width:70px;height:98px">
+  <img id="card-a" style="width:70px;height:98px" src="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%3E%3Crect%20fill='green'/%3E%3C/svg%3E">
+</div>
+<div class="cards" style="left:730px;top:497px;width:70px;height:98px">
+  <img id="card-b" style="width:70px;height:98px" src="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%3E%3Crect%20fill='red'/%3E%3C/svg%3E">
+</div>
+<div id="hero-badge">ACTION</div>
+<div id="hero-stack">208</div>
+<div id="pot" style="left:715px;top:300px;height:20px;overflow:hidden">
+  <div>4</div><div>9</div><div>8</div><div>7</div><div>6</div><div>5</div>
+</div>
+<div id="panel"><div>2x</div><div>2.5x</div><div>3x</div><div>4x</div><div>All-In</div>
+  <div>Fold</div><div>Call: 35</div><div>Raise: 108</div>
+</div>

@@ -15,10 +15,10 @@ HERO_STACK_PATTERN = re.compile(
     r"(?:\b(\d+(?:\.\d+)?)\s*BB\s+ACTION\b|\bACTION\s+(\d+(?:\.\d+)?)\s*BB\b)",
     re.IGNORECASE,
 )
-RAISE_ACTION_PATTERN = re.compile(r"\bRAISE\s+(\d+(?:\.\d+)?)\s*BB\b")
+RAISE_ACTION_PATTERN = re.compile(r"\bRAISE\s+(\d+(?:\.\d+)?)(?:\s*BB)?\b")
 RAISE_CONTROL_PATTERN = re.compile(r"\bRaise:\s*(\d+(?:\.\d+)?)\s*(?:BB)?\b", re.IGNORECASE)
 POT_PATTERN = re.compile(r"\bPot:\s*(\d+(?:\.\d+)?)\s*(?:BB)?\b", re.IGNORECASE)
-SEAT_ACTION_PATTERN = re.compile(r"\b(?:FOLD|RAISE\s+\d+(?:\.\d+)?\s*BB|CALL\s+\d+(?:\.\d+)?\s*BB|CHECK)\b")
+SEAT_ACTION_PATTERN = re.compile(r"\b(?:FOLD|RAISE\s+\d+(?:\.\d+)?(?:\s*BB)?|CALL\s+\d+(?:\.\d+)?(?:\s*BB)?|CHECK)\b")
 OPPONENT_SEAT_PATTERN = re.compile(
     r"\b[A-Z][a-z]+\s+(\d+(?:\.\d+)?)\s*BB(?:\s+(FOLD|RAISE\s+\d+(?:\.\d+)?\s*BB|CALL\s+\d+(?:\.\d+)?\s*BB|CHECK))?"
 )

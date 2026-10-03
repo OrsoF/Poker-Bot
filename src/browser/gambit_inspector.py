@@ -1,4 +1,4 @@
-"""Read-only browser inspector for selector and layout diagnostics."""
+"""Visible browser inspector for selector and layout diagnostics."""
 
 import json
 from datetime import datetime
@@ -7,6 +7,7 @@ from time import sleep
 from typing import TYPE_CHECKING
 
 from src.browser.gambit_config import GAMBIT_URL, PROFILE_DIRECTORY, validate_gambit_url
+from src.browser.gambit_controls import visible_text_control
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page
@@ -18,7 +19,9 @@ def visible_dom_map(page: "Page") -> dict[str, object]:
       const rect = element.getBoundingClientRect();
       const style = window.getComputedStyle(element);
       return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden';
-    }).map((element) => ({
+    }).map((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
       tag: element.tagName.toLowerCase(),
       text: (element.innerText || element.value || '').trim().slice(0, 120),
       role: element.getAttribute('role'),
@@ -30,7 +33,8 @@ def visible_dom_map(page: "Page") -> dict[str, object]:
         .filter((attribute) => attribute.name.startsWith('data-'))
         .map((attribute) => [attribute.name, attribute.value])),
       rect: {x: rect.x, y: rect.y, width: rect.width, height: rect.height},
-    }))"""
+      };
+    })"""
     controls = page.locator("button, [role='button'], input[type='button'], input[type='submit']").evaluate_all(extractor)
     cards = page.locator("body").evaluate(
         """(body) => {
@@ -106,7 +110,7 @@ def visible_dom_map(page: "Page") -> dict[str, object]:
 
 
 def inspect_table(interval_seconds: float, target_url: str | None = None) -> None:
-    """Save visible table metadata and screenshots without clicking any controls."""
+    """Open Play Bots by default, then inspect without submitting table actions."""
     if interval_seconds <= 0:
         raise ValueError("interval_seconds must be greater than zero")
     validate_gambit_url(target_url)
@@ -127,11 +131,24 @@ def inspect_table(interval_seconds: float, target_url: str | None = None) -> Non
         )
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(target_url or GAMBIT_URL, wait_until="domcontentloaded")
-        print("Inspector open. Sign in and navigate to a table; no table actions will be taken.")
+        play_bots_pending = target_url is None
+        if play_bots_pending:
+            print("Inspector open. Sign in manually if needed; Play Bots will open automatically. No poker actions will be taken.")
+        else:
+            print("Inspector open. Sign in manually if needed; no poker actions will be taken.")
         previous = ""
+        last_error = None
         try:
             while True:
                 try:
+                    if play_bots_pending:
+                        play_bots = visible_text_control(page, "Play Bots")
+                        if play_bots is not None:
+                            play_bots.click(timeout=2_000)
+                            play_bots_pending = False
+                            print("INSPECTION: Play Bots clicked")
+                            sleep(interval_seconds)
+                            continue
                     visible_text = page.locator("body").inner_text(timeout=2_000)
                     dom = visible_dom_map(page)
                     fingerprint = json.dumps({"text": visible_text, "dom": dom}, sort_keys=True)
@@ -156,8 +173,15 @@ def inspect_table(interval_seconds: float, target_url: str | None = None) -> Non
                         )
                         print(f"INSPECTION: saved {metadata_path}")
                         previous = fingerprint
+                    last_error = None
                 except Error as error:
-                    print(f"WAIT: {error.__class__.__name__}")
+                    if page.is_closed():
+                        print("Inspector stopped: browser page closed.")
+                        break
+                    message = str(error)
+                    if message != last_error:
+                        print(f"WAIT: {message}")
+                        last_error = message
                 sleep(interval_seconds)
         except KeyboardInterrupt:
             print("Inspector stopped.")

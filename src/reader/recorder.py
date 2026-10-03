@@ -32,6 +32,9 @@ class ObservationRecorder:
         state: ObservedState,
         hero_turn: bool,
         dom_map: dict[str, object] | None = None,
+        observed_state: ObservedState | None = None,
+        decision: dict[str, object] | None = None,
+        hand_number: int | None = None,
     ) -> None:
         record = {
             "recorded_at": datetime.now().astimezone().isoformat(),
@@ -41,6 +44,11 @@ class ObservationRecorder:
         }
         if dom_map is not None:
             record["visible_dom"] = dom_map
+        if observed_state is not None:
+            record["observed"] = _json_safe(asdict(observed_state))
+        if decision is not None:
+            record["decision"] = decision
+            record["hand_number"] = hand_number
         with self.path.open("a", encoding="utf-8") as output:
             json.dump(record, output, ensure_ascii=False)
             output.write("\n")

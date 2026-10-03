@@ -21,9 +21,10 @@ def run_dry_run() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Observe a poker table safely.")
+    parser = argparse.ArgumentParser(
+        description="Assist at a poker table. Without a command, run the offline decision check."
+    )
     commands = parser.add_subparsers(dest="command")
-    commands.add_parser("dry-run", help="Run the offline decision check.")
 
     def browser_command(name: str, help_text: str) -> argparse.ArgumentParser:
         command = commands.add_parser(name, help=help_text)
@@ -31,12 +32,14 @@ def main() -> None:
         command.add_argument("--url", default=None, help="Optional Gambit table URL to open after login.")
         return command
 
-    browser_command("observe", "Open the browser and print table-state changes without screenshots or clicks.")
-    browser_command("inspect", "Save visible card/control metadata and screenshots without clicking.")
-    browser_command("train", "Record screenshots and ask for labels for unrecognized cards; never click.")
-    browser_command(
+    assist = browser_command(
         "assist",
-        "Show card vision, hand strength, and conservative recommendations while you play manually.",
+        "Read cards, learn unknown cards, and show safe recommendations without clicking.",
+    )
+    assist.add_argument(
+        "--no-vision",
+        action="store_true",
+        help="Read visible table text only, without vision configuration, recording, or clicks.",
     )
     play = browser_command("play", "Use vision and conservative autoplay while recording observations.")
     play.add_argument(
@@ -44,23 +47,32 @@ def main() -> None:
         action="store_true",
         help="Print the best confirmed hand on the flop, turn, and river.",
     )
+    for command in (assist, play):
+        command.add_argument(
+            "strategy", nargs="?", choices=("conservative", "allin"), default="conservative",
+            help="Decision policy: conservative by default, or preflop all-in with the premium range.",
+        )
+    browser_command("inspect", "Open Play Bots and save visible metadata/screenshots without poker actions.")
     args = parser.parse_args()
 
-    if args.command in (None, "dry-run"):
+    if args.command is None:
         run_dry_run()
         return
     if args.command == "inspect":
         inspect_table(interval_seconds=args.interval, target_url=args.url)
         return
 
+    auto_play = args.command == "play"
+    vision = auto_play or not args.no_vision
     observe_table(
         interval_seconds=args.interval,
         target_url=args.url,
-        record=args.command in {"train", "assist", "play"},
-        auto_play=args.command == "play",
+        record=vision,
+        auto_play=auto_play,
         record_dom=False,
-        vision=args.command in {"train", "assist", "play"},
-        hand_strength=args.command == "assist" or (args.command == "play" and args.hand_strength),
+        vision=vision,
+        hand_strength=args.hand_strength if auto_play else vision,
+        strategy=args.strategy,
     )
 
 

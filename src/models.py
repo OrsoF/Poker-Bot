@@ -4,6 +4,19 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class SeatObservation:
+    """One visible seat, ordered clockwise from the top of the table."""
+
+    seat_index: int
+    name: str | None
+    stack_bb: float | None
+    position: str | None
+    is_hero: bool = False
+    is_dealer: bool = False
+    folded: bool = False
+
+
+@dataclass(frozen=True)
 class ObservedState:
     hand: str | None
     street: str | None
@@ -22,3 +35,5 @@ class ObservedState:
     board_cards: tuple[str, ...] = ()
     available_actions: frozenset[str] = frozenset()
     raise_amount: float | None = None
+    all_in_amount: float | None = None
+    seats: tuple[SeatObservation, ...] = ()

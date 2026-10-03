@@ -11,9 +11,10 @@ if TYPE_CHECKING:
 
 CALL_LABEL = re.compile(r"^Call:\s*\d+(?:\.\d+)?(?:\s*BB)?$", re.IGNORECASE)
 RAISE_LABEL = re.compile(
-    r"^(?:Check\s+)?(?:Bet|Raise):\s*\d+(?:\.\d+)?(?:\s*BB)?$",
+    r"^(?:Check\s+)?(?:Bet|Raise|All-In):\s*\d+(?:\.\d+)?(?:\s*BB)?$",
     re.IGNORECASE,
 )
+ALL_IN_SUBMIT_LABEL = re.compile(r"^All-In:\s*\d+(?:\.\d+)?(?:\s*BB)?$", re.IGNORECASE)
 POT_LABEL = re.compile(r"^(\d+(?:\.\d+)?)\s*BB$", re.IGNORECASE)
 
 
@@ -30,10 +31,13 @@ def find_action_control(page: "Page", action: str):
     """Resolve one visible control from the live action panel."""
     if action != "RAISE" and visible_text_control(page, "All-In") is None:
         return None
+    if action == "ALL_IN" and visible_text_control(page, RAISE_LABEL) is None:
+        return None
     label = {
         "CHECK": "Check",
         "FOLD": "Fold",
         "RAISE": RAISE_LABEL,
+        "ALL_IN": "All-In",
     }.get(action, CALL_LABEL)
     return visible_text_control(page, label)
 
@@ -54,6 +58,16 @@ def live_raise_amount(page: "Page") -> float | None:
     if control is None:
         return None
     match = RAISE_LABEL.fullmatch(control.inner_text().strip())
+    amount = re.search(r"\d+(?:\.\d+)?", match.group(0)) if match else None
+    return float(amount.group(0)) if amount else None
+
+
+def live_all_in_amount(page: "Page") -> float | None:
+    """Read the numeric All-In submission button, never the sizing preset."""
+    control = visible_text_control(page, ALL_IN_SUBMIT_LABEL)
+    if control is None:
+        return None
+    match = ALL_IN_SUBMIT_LABEL.fullmatch(control.inner_text().strip())
     amount = re.search(r"\d+(?:\.\d+)?", match.group(0)) if match else None
     return float(amount.group(0)) if amount else None
 
@@ -97,7 +111,7 @@ def available_actions(page: "Page") -> frozenset[str]:
     """Return every action currently visible in the live action panel."""
     return frozenset(
         action
-        for action in ("FOLD", "CHECK", "CALL", "RAISE")
+        for action in ("FOLD", "CHECK", "CALL", "RAISE", "ALL_IN")
         if find_action_control(page, action) is not None
     )
 
